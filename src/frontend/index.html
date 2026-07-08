@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPG Metrics Manager</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                fontFamily: {
+                    sans: ['Inter', 'sans-serif'],
+                },
+                extend: {
+                    colors: {
+                        brand: {
+                            blue: '#0F2C59',
+                            steel: '#475569',
+                            light: '#F8FAFC',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <?!= include('src/frontend/styles'); ?>
+</head>
+<body class="bg-brand-light text-slate-800 flex flex-col min-h-screen">
+
+    <!-- Global Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-slate-900 bg-opacity-60 z-50 hidden flex-col items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center">
+            <div class="spinner mb-4 border-brand-blue" style="border-top-color: transparent;"></div>
+            <p class="text-brand-blue font-semibold text-lg" id="loadingText">Processing request...</p>
+        </div>
+    </div>
+
+    <!-- Rebuild Modal -->
+    <div id="rebuildModal" class="fixed inset-0 bg-slate-900 bg-opacity-50 z-40 hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 m-4 transform scale-95 transition-transform duration-300 flex flex-col">
+            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4 mx-auto">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-center text-slate-900 mb-2">Danger: Total Rebuild</h3>
+            <p class="text-sm text-center text-slate-500 mb-6">This action will delete the entire current database and rebuild it from scratch. This process may take a few minutes and is irreversible. Are you sure you want to continue?</p>
+            <div class="flex space-x-3 mt-auto">
+                <button onclick="closeRebuildModal()" class="flex-1 bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded-lg hover:bg-slate-50 font-medium transition-colors">Cancel</button>
+                <button onclick="confirmRebuild()" class="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 font-medium shadow-lg shadow-red-200 transition-colors">Yes, Rebuild!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-brand-blue text-white shadow-lg sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <svg class="w-8 h-8 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                <h1 class="text-xl font-bold tracking-tight text-white">CPG Metrics Manager</h1>
+            </div>
+            <div class="flex items-center space-x-2 bg-blue-900 bg-opacity-50 px-3 py-1.5 rounded-full border border-blue-800">
+                <span class="relative flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </span>
+                <span class="text-sm font-medium text-blue-100">API Online</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
+
+            <!-- Card 1: Quick Sync -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow flex flex-col h-full">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="p-3 rounded-lg bg-blue-50 text-brand-blue">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    </div>
+                </div>
+                <h2 class="text-lg font-bold text-slate-800 mb-2">Quick Sync</h2>
+                <p class="text-sm text-slate-500 mb-6">Finds and processes recently modified tickets. Button for quick day-to-day use.</p>
+                <button onclick="runQuickSync()" class="w-full bg-brand-blue text-white font-medium py-2.5 rounded-lg hover:bg-blue-900 transition-colors mt-auto">
+                    Sync Now
+                </button>
+            </div>
+
+            <!-- Card 2: Rebuild -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow flex flex-col h-full">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="p-3 rounded-lg bg-red-50 text-red-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </div>
+                </div>
+                <h2 class="text-lg font-bold text-slate-800 mb-2">Full Sync (Rebuild)</h2>
+                <p class="text-sm text-slate-500 mb-6 flex-1">Deletes the entire Google Sheets database and downloads absolutely everything again from Jira.</p>
+                <button onclick="openRebuildModal()" class="w-full bg-white text-red-600 border border-red-200 font-medium py-2.5 rounded-lg hover:bg-red-50 hover:border-red-300 transition-colors mt-auto">
+                    Rebuild Database
+                </button>
+            </div>
+
+            <!-- Card 3: Historical Load -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow flex flex-col h-full">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="p-3 rounded-lg bg-indigo-50 text-indigo-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                </div>
+                <h2 class="text-lg font-bold text-slate-800 mb-2">Historical Load</h2>
+                <p class="text-sm text-slate-500 mb-4 flex-1">Updates and downloads tickets from Jira based on a specific creation or modification date range.</p>
+                <div class="flex space-x-2 mb-4">
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">From</label>
+                        <input type="date" id="startDate" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">To</label>
+                        <input type="date" id="endDate" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none">
+                    </div>
+                </div>
+                <button onclick="runHistoricalLoad()" class="w-full bg-slate-800 text-white font-medium py-2.5 rounded-lg hover:bg-slate-900 transition-colors mt-auto">
+                    Execute Load
+                </button>
+            </div>
+
+            <!-- Card 4: Manual Update -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow flex flex-col h-full">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="p-3 rounded-lg bg-amber-50 text-amber-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    </div>
+                </div>
+                <h2 class="text-lg font-bold text-slate-800 mb-2">Manual Update</h2>
+                <p class="text-sm text-slate-500 mb-4 flex-1">Forces the download of one or multiple tickets by their ID, ignoring date rules.</p>
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Jira Keys (comma separated)</label>
+                    <input type="text" id="manualKeys" placeholder="Ex: CPG-100, CPG-101" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2.5 outline-none placeholder-slate-400">
+                </div>
+                <button onclick="runManualUpdate()" class="w-full bg-amber-500 text-white font-medium py-2.5 rounded-lg hover:bg-amber-600 transition-colors mt-auto">
+                    Update Tickets
+                </button>
+            </div>
+
+            <!-- Card 5: Delete Cleanup -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow flex flex-col h-full">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="p-3 rounded-lg bg-teal-50 text-teal-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    </div>
+                </div>
+                <h2 class="text-lg font-bold text-slate-800 mb-2">Audit and Cleanup</h2>
+                <p class="text-sm text-slate-500 mb-6 flex-1">Verifies which tickets in the Sheet no longer exist remotely in Jira, to delete or report them.</p>
+                <button onclick="runCleanupDeleted()" class="w-full bg-white text-teal-600 border border-teal-200 font-medium py-2.5 rounded-lg hover:bg-teal-50 hover:border-teal-300 transition-colors mt-auto">
+                    Identify Deleted
+                </button>
+            </div>
+
+            <!-- Card 6: Time-based Triggers Config -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow flex flex-col h-full">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="p-3 rounded-lg bg-brand-steel text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+                    </div>
+                </div>
+                <h2 class="text-lg font-bold text-slate-800 mb-2">Automatic Triggers</h2>
+                <p class="text-sm text-slate-500 mb-6 flex-1">Enables or disables recurring synchronization scheduled on Google servers.</p>
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200 mt-auto">
+                    <span class="text-sm font-semibold text-slate-700">Auto Sync</span>
+                    <div class="relative inline-block w-12 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" id="triggerToggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer" onchange="runToggleTriggers(this)"/>
+                        <label for="triggerToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Console Logs -->
+    <section class="bg-slate-900 border-t border-slate-800 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between mb-3 border-b border-slate-700 pb-2">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <h3 class="text-sm font-medium text-slate-200 uppercase tracking-wider">Status Console</h3>
+                </div>
+                <button onclick="clearConsole()" class="text-xs text-slate-400 hover:text-white transition-colors flex items-center space-x-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    <span>Clear</span>
+                </button>
+            </div>
+            <div id="consoleLog" class="h-40 overflow-y-auto console-scroll space-y-2 font-mono text-sm">
+                <div class="flex items-start break-words text-slate-400">
+                    <span class="text-blue-400 mr-2 shrink-0">[System]</span> 
+                    <span class="text-slate-500 text-xs mr-2 shrink-0 pt-0.5">Ready</span>
+                    <span>Console successfully initialized and awaiting requests.</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <?!= include('src/frontend/script'); ?>
+</body>
+</html>

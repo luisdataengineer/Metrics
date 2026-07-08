@@ -1,0 +1,115 @@
+<script>
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingText = document.getElementById('loadingText');
+    const consoleLog = document.getElementById('consoleLog');
+
+    function addLog(message, type = 'info') {
+        const timeObj = new Date();
+        const time = timeObj.getHours().toString().padStart(2, '0') + ':' + 
+                     timeObj.getMinutes().toString().padStart(2, '0') + ':' + 
+                     timeObj.getSeconds().toString().padStart(2, '0');
+        
+        let typeStyles = "text-slate-300";
+        let prefix = "[Info]";
+        
+        if (type === 'success') { typeStyles = "text-green-400 font-medium"; prefix = "[Success]"; } 
+        else if (type === 'error') { typeStyles = "text-red-400 font-medium"; prefix = "[Error]"; } 
+        else if (type === 'warn') { typeStyles = "text-yellow-400 font-medium"; prefix = "[Warning]"; } 
+        else if (type === 'system') { typeStyles = "text-blue-400"; prefix = "[System]"; }
+        
+        const div = document.createElement('div');
+        div.className = "flex items-start break-words";
+        div.innerHTML = `
+            <span class="${typeStyles} mr-2 shrink-0">${prefix}</span>
+            <span class="text-slate-500 text-xs mr-2 shrink-0 pt-0.5">${time}</span>
+            <span class="text-slate-300 whitespace-pre-line">${message}</span>
+        `;
+        
+        consoleLog.appendChild(div);
+        consoleLog.scrollTop = consoleLog.scrollHeight;
+    }
+
+    function clearConsole() {
+        consoleLog.innerHTML = '';
+        addLog("Console cleared manually.", "system");
+    }
+
+    function showLoading(msg) {
+        loadingText.textContent = msg;
+        loadingOverlay.classList.remove('hidden');
+        loadingOverlay.classList.add('flex');
+        document.body.classList.add('is-loading');
+    }
+
+    function hideLoading() {
+        loadingOverlay.classList.add('hidden');
+        loadingOverlay.classList.remove('flex');
+        document.body.classList.remove('is-loading');
+    }
+
+    /** Base Executer with Google handlers */
+    function executeGAS(functionName, args = [], loadingMsg = 'Connecting...') {
+        showLoading(loadingMsg);
+        addLog(`Sending request to '${functionName}'...`, 'system');
+
+        if (typeof google === 'undefined' || typeof google.script === 'undefined') {
+            addLog(`Dev Mode (Simulator): google.script.run is not defined.`, 'warn');
+            setTimeout(() => {
+                hideLoading();
+                addLog(`Simulation completed for: ${functionName}`, 'success');
+            }, 1500);
+            return;
+        }
+
+        google.script.run
+            .withSuccessHandler((resultado) => {
+                hideLoading();
+                const msg = (resultado !== undefined && resultado !== null) ? 
+                    (typeof resultado === 'object' ? JSON.stringify(resultado) : String(resultado)) : 
+                    `Process '${functionName}' executed without errors.`;
+                addLog(msg, 'success');
+            })
+            .withFailureHandler((error) => {
+                hideLoading();
+                addLog(error.message || String(error), 'error');
+            })
+            [functionName](...args);
+    }
+
+    function runQuickSync() {
+        executeGAS('quickSync', [], 'Executing Quick Sync...');
+    }
+
+    function openRebuildModal() { document.getElementById('rebuildModal').classList.remove('hidden'); document.getElementById('rebuildModal').classList.add('flex'); }
+    function closeRebuildModal() { document.getElementById('rebuildModal').classList.add('hidden'); document.getElementById('rebuildModal').classList.remove('flex'); }
+    function confirmRebuild() {
+        closeRebuildModal();
+        executeGAS('rebuildDatabase', [], 'Rebuilding database! Expected to take a few minutes...');
+    }
+
+    function runHistoricalLoad() {
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+        if (!start || !end) return addLog('You must fill in the dates (From and To).', 'warn');
+        if (new Date(start) > new Date(end)) return addLog('The start date cannot be later than the end date.', 'error');
+        executeGAS('historicalLoad', [start, end], `Downloading tickets from ${start} to ${end}`);
+    }
+
+    function runManualUpdate() {
+        const keysRaw = document.getElementById('manualKeys').value;
+        if (!keysRaw.trim()) return addLog('Write at least one ticket in the text field.', 'warn');
+        const keys = keysRaw.toUpperCase().split(',').map(s => s.trim()).filter(s => s.length > 0);
+        executeGAS('manualUpdate', [keys], `Forcing update for ${keys.length} ticket(s)...`);
+        document.getElementById('manualKeys').value = '';
+    }
+
+    function runCleanupDeleted() {
+        executeGAS('cleanupDeleted', [], 'Verifying deleted tickets and cleaning sheets...');
+    }
+
+    function runToggleTriggers(checkbox) {
+        const state = checkbox.checked;
+        addLog(state ? 'Enabling daily triggers...' : 'Disabling regular daily triggers...', 'system');
+        executeGAS('toggleTriggers', [state], state ? 'Turning on automation' : 'Turning off automation');
+    }
+</script>
