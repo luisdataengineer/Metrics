@@ -210,8 +210,8 @@ function runCleanupDeleted() {
         }
 
         // PHASE 1: Phantom Pruning
-        const oldestDate = Database.getOldestTicketDate() || CONFIG.SYNC.HISTORICAL_DATE || "2025-01-01";
-        const jqlKeys = `project = "${CONFIG.JIRA.PROJECT}" AND created >= "${oldestDate}"`;
+        const oldestDate = CONFIG.SYNC.HISTORICAL_DATE || "2025-01-01";
+        const jqlKeys = `project = "${CONFIG.JIRA.PROJECT}" AND created >= "${oldestDate}" ORDER BY created ASC`;
         
         Logger.log(`📡 PHASE 1: Getting master keys since ${oldestDate}...`);
         const jiraKeys = fetchJiraKeysOnly(jqlKeys);

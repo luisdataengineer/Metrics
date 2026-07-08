@@ -51,7 +51,7 @@ function fetchJiraKeysOnly(jqlQuery) {
     try {
         do {
             let url = `${auth.url}/rest/api/3/search/jql?jql=${encodeURIComponent(jqlQuery)}&fields=key&maxResults=100`;
-            if (nextPageToken) url += "&nextPageToken=" + nextPageToken;
+            if (nextPageToken) url += "&nextPageToken=" + encodeURIComponent(nextPageToken);
 
             let attempt = 0, success = false;
             let response, responseCode, responseText;
@@ -128,7 +128,7 @@ function fetchJiraIssues(jqlQuery) {
                 "&maxResults=" + CONFIG.JIRA.MAX_RESULTS;
 
             if (nextPageToken) {
-                url += "&nextPageToken=" + nextPageToken;
+                url += "&nextPageToken=" + encodeURIComponent(nextPageToken);
             }
 
             // 2. Fetch with Retry Logic
