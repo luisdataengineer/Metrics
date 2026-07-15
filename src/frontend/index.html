@@ -54,6 +54,96 @@
         </div>
     </div>
 
+    <!-- Integrity Report Modal -->
+    <div id="integrityModal" class="fixed inset-0 bg-slate-900 bg-opacity-60 z-40 hidden items-center justify-center backdrop-blur-sm transition-all duration-300">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 transform scale-95 transition-transform duration-300 flex flex-col max-h-[85vh] overflow-hidden">
+            <!-- Header -->
+            <div class="bg-teal-600 text-white px-6 py-4 flex justify-between items-center shrink-0">
+                <div class="flex items-center space-x-3">
+                    <svg class="w-6 h-6 text-teal-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                    <h3 class="text-lg font-bold tracking-wide">Data Integrity Report</h3>
+                </div>
+                <button onclick="closeIntegrityModal()" class="text-teal-100 hover:text-white transition-colors p-1 rounded-lg hover:bg-teal-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <!-- Content Area (Scrollable) -->
+            <div class="p-6 overflow-y-auto space-y-6 text-slate-700">
+                <!-- Top Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Match Percentage Card -->
+                    <div class="bg-gradient-to-br from-teal-50 to-emerald-50 border border-teal-100 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+                        <span class="text-xs font-semibold text-teal-700 uppercase tracking-wider mb-1">Match Rate</span>
+                        <span id="intMatchPct" class="text-3xl font-extrabold text-teal-600">0%</span>
+                        <p class="text-[10px] text-teal-600/80 mt-1">Jira vs Google Sheets</p>
+                    </div>
+
+                    <!-- Total Jira Card -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+                        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Jira Tickets</span>
+                        <span id="intTotalJira" class="text-3xl font-bold text-slate-800">0</span>
+                        <p id="intBaseDate" class="text-[10px] text-slate-400 mt-1">Since 2025-01-01</p>
+                    </div>
+
+                    <!-- Total Sheets Card -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+                        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Sheets Tickets</span>
+                        <span id="intTotalSheets" class="text-3xl font-bold text-slate-800">0</span>
+                        <p id="intMatchingCount" class="text-[10px] text-slate-400 mt-1">0 matching tickets</p>
+                    </div>
+                </div>
+
+                <!-- Status/Recommendation Alert -->
+                <div id="intStatusAlert" class="p-4 rounded-lg flex items-start space-x-3 text-sm">
+                    <!-- Dynamic Icon & Message goes here -->
+                </div>
+
+                <!-- Discrepancy Details (Accordion/Lists) -->
+                <div class="space-y-4">
+                    <!-- Section A: Phantoms (In Sheets, NOT in Jira) -->
+                    <div class="border border-slate-200 rounded-xl overflow-hidden">
+                        <div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
+                            <div class="flex items-center space-x-2">
+                                <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full" id="intPhantomCount">0</span>
+                                <h4 class="font-semibold text-slate-800 text-sm">Phantom Tickets (In Sheets, Not in Jira)</h4>
+                            </div>
+                            <span class="text-xs text-slate-400 font-medium">Deleted in Jira but left in Sheets</span>
+                        </div>
+                        <div class="p-4 max-h-40 overflow-y-auto text-xs font-mono" id="intPhantomList">
+                            <!-- List of keys -->
+                        </div>
+                    </div>
+
+                    <!-- Section B: Missing (In Jira, NOT in Sheets) -->
+                    <div class="border border-slate-200 rounded-xl overflow-hidden">
+                        <div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
+                            <div class="flex items-center space-x-2">
+                                <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full" id="intMissingCount">0</span>
+                                <h4 class="font-semibold text-slate-800 text-sm">Missing Sync Tickets (In Jira, Not in Sheets)</h4>
+                            </div>
+                            <span class="text-xs text-slate-400 font-medium">Created/Modified but not yet in DB</span>
+                        </div>
+                        <div class="p-4 max-h-40 overflow-y-auto text-xs font-mono" id="intMissingList">
+                            <!-- List of keys -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="bg-slate-50 px-6 py-4 border-t border-slate-200 flex items-center justify-between shrink-0">
+                <span id="intLastUpdated" class="text-xs text-slate-400 font-mono">Last run: --</span>
+                <div class="flex space-x-3">
+                    <button onclick="closeIntegrityModal()" class="bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded-lg hover:bg-slate-100 font-medium text-sm transition-colors">Close</button>
+                    <button id="intActionBtn" onclick="runCleanupFromReport()" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 font-medium text-sm shadow-md transition-colors hidden">Run Cleanup Now</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Header -->
     <header class="bg-brand-blue text-white shadow-lg sticky top-0 z-30">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -156,9 +246,17 @@
                 </div>
                 <h2 class="text-lg font-bold text-slate-800 mb-2">Audit and Cleanup</h2>
                 <p class="text-sm text-slate-500 mb-6 flex-1">Verifies which tickets in the Sheet no longer exist remotely in Jira, to delete or report them.</p>
-                <button onclick="runCleanupDeleted()" class="w-full bg-white text-teal-600 border border-teal-200 font-medium py-2.5 rounded-lg hover:bg-teal-50 hover:border-teal-300 transition-colors mt-auto">
-                    Identify Deleted
-                </button>
+                <div class="flex flex-col gap-2 mt-auto">
+                    <button onclick="openIntegrityModal()" class="w-full bg-teal-600 text-white font-medium py-2.5 rounded-lg hover:bg-teal-700 shadow-lg shadow-teal-100 transition-all flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5 text-teal-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                        </svg>
+                        <span>Integrity Report</span>
+                    </button>
+                    <button onclick="runCleanupDeleted()" class="w-full bg-white text-teal-600 border border-teal-200 font-medium py-2 px-4 rounded-lg hover:bg-teal-50 hover:border-teal-300 transition-colors text-sm">
+                        Identify & Cleanup Deleted
+                    </button>
+                </div>
             </div>
 
             <!-- Card 6: Time-based Triggers Config -->

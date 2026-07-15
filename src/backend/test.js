@@ -62,3 +62,27 @@ function runSingleTicketTest() {
         Logger.log(`❌ ERROR: ${e.message}`);
     }
 }
+
+/**
+ * UNIT TEST: Integrity Report Generator
+ */
+function testIntegrityReportGenerator() {
+    Logger.log("🧪 STARTING INTEGRITY REPORT GENERATOR UNIT TEST...");
+    try {
+        const report = runIntegrityReport();
+        Logger.log("=========================================");
+        Logger.log("✅ TEST COMPLETED SUCCESSFULLY!");
+        Logger.log("REPORT RESULTS:");
+        Logger.log(`- Timestamp: ${report.timestamp}`);
+        Logger.log(`- Oldest date: ${report.oldestDate}`);
+        Logger.log(`- Total tickets in Jira: ${report.totalJira}`);
+        Logger.log(`- Total tickets in Sheets: ${report.totalSheets}`);
+        Logger.log(`- Match count: ${report.matchCount}`);
+        Logger.log(`- Match percentage: ${report.matchPercentage}%`);
+        Logger.log(`- Missing in Jira count: ${report.missingInJiraCount}`);
+        Logger.log(`- Missing in Sheets count: ${report.missingInSheetsCount}`);
+        Logger.log("=========================================");
+    } catch (e) {
+        Logger.log(`❌ TEST FAILED: ${e.message}`);
+    }
+}

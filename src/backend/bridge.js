@@ -69,7 +69,7 @@ function runValidatorBridge() {
     const tLastRow = ticketsSheet.getLastRow();
     if (tLastRow <= 1) return Logger.log("🏁 No tickets found in DB_Tickets.");
 
-    const ticketData = ticketsSheet.getRange(2, 1, tLastRow - 1, 20).getValues();
+    const ticketData = ticketsSheet.getRange(2, 1, tLastRow - 1, 24).getValues();
     let rowsToInsert = [];
 
     Logger.log("🔍 Scanning DB_Tickets for validation candidates...");
@@ -87,10 +87,30 @@ function runValidatorBridge() {
         const assigned = String(row[12] || "");
         const resWeek = String(row[19] || "");
         
+        const createdVal = row[14];
+        const updatedVal = row[23];
+        
+        let isValidDate = false;
+        if (createdVal && updatedVal) {
+            const createdDate = new Date(createdVal);
+            const updatedDate = new Date(updatedVal);
+            const limitDate = new Date("2026-01-01T00:00:00");
+            
+            if (!isNaN(createdDate.getTime()) && !isNaN(updatedDate.getTime())) {
+                const createdDateOnly = Utilities.formatDate(createdDate, "America/Bogota", "yyyy-MM-dd");
+                const updatedDateOnly = Utilities.formatDate(updatedDate, "America/Bogota", "yyyy-MM-dd");
+                
+                const areDatesEqual = createdDateOnly === updatedDateOnly;
+                const isGteLimit = createdDate >= limitDate && updatedDate >= limitDate;
+                
+                isValidDate = areDatesEqual && isGteLimit;
+            }
+        }
+        
         const isTargetTaskType = taskType.includes("create") || taskType.includes("edit") || taskType.includes("fix");
 
-        // Condition: Status "dev complete", no parent/epic, and TaskType Create/Edit/Fix
-        if (status === "dev complete" && !ticketType.includes("parent") && !ticketType.includes("epic") && isTargetTaskType) {
+        // Condition: Status "dev complete", no parent/epic, TaskType Create/Edit/Fix, and valid date matching criteria
+        if (status === "dev complete" && !ticketType.includes("parent") && !ticketType.includes("epic") && isTargetTaskType && isValidDate) {
             // Check if NOT already in validation
             const valIndex = validatedKeys.indexOf(ticketKey);
             if (valIndex === -1) {

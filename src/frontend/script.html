@@ -107,6 +107,143 @@
         executeGAS('cleanupDeleted', [], 'Verifying deleted tickets and cleaning sheets...');
     }
 
+    function openIntegrityModal() {
+        showLoading('Generating Data Integrity Report...');
+        addLog('Requesting data integrity analysis from backend...', 'system');
+
+        if (typeof google === 'undefined' || typeof google.script === 'undefined') {
+            addLog(`Dev Mode (Simulator): google.script.run.getIntegrityReport is not defined.`, 'warn');
+            setTimeout(() => {
+                hideLoading();
+                const mockReport = {
+                    status: "success",
+                    timestamp: "2026-07-15 11:00:00",
+                    oldestDate: "2025-01-01",
+                    totalJira: 150,
+                    totalSheets: 148,
+                    matchCount: 145,
+                    matchPercentage: 96.67,
+                    missingInJiraCount: 3,
+                    missingInJiraSamples: ["CPG-101", "CPG-102", "CPG-103"],
+                    missingInSheetsCount: 5,
+                    missingInSheetsSamples: ["CPG-201", "CPG-202", "CPG-203", "CPG-204", "CPG-205"]
+                };
+                displayIntegrityReport(mockReport);
+                addLog(`Simulation completed. Match rate: ${mockReport.matchPercentage}%`, 'success');
+            }, 1500);
+            return;
+        }
+
+        google.script.run
+            .withSuccessHandler((report) => {
+                hideLoading();
+                if (report && report.status === 'success') {
+                    displayIntegrityReport(report);
+                    addLog(`Integrity Report generated successfully. Match rate: ${report.matchPercentage}%`, 'success');
+                } else {
+                    addLog(`Error generating report: ${report.message || 'Unknown error'}`, 'error');
+                }
+            })
+            .withFailureHandler((error) => {
+                hideLoading();
+                addLog(error.message || String(error), 'error');
+            })
+            .getIntegrityReport();
+    }
+
+    function displayIntegrityReport(report) {
+        document.getElementById('intMatchPct').textContent = report.matchPercentage + '%';
+        document.getElementById('intTotalJira').textContent = report.totalJira;
+        document.getElementById('intTotalSheets').textContent = report.totalSheets;
+        document.getElementById('intMatchingCount').textContent = `${report.matchCount} matching tickets`;
+        document.getElementById('intBaseDate').textContent = `Since ${report.oldestDate}`;
+        document.getElementById('intLastUpdated').textContent = `Last run: ${report.timestamp}`;
+
+        // Dynamic Recommendations & Status Alert
+        const alertEl = document.getElementById('intStatusAlert');
+        const actionBtn = document.getElementById('intActionBtn');
+        
+        if (report.matchPercentage === 100 && report.missingInJiraCount === 0 && report.missingInSheetsCount === 0) {
+            alertEl.className = "p-4 rounded-lg flex items-start space-x-3 text-sm bg-green-50 text-green-800 border border-green-200";
+            alertEl.innerHTML = `
+                <svg class="w-5 h-5 text-green-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div>
+                    <span class="font-bold">Perfect Synchrony!</span> Your Google Sheets database is in 100% agreement with Jira Cloud. No actions are required.
+                </div>
+            `;
+            actionBtn.classList.add('hidden');
+        } else {
+            alertEl.className = "p-4 rounded-lg flex items-start space-x-3 text-sm bg-amber-50 text-amber-800 border border-amber-200";
+            let warningText = "";
+            if (report.missingInJiraCount > 0) {
+                warningText += `<li>Found <strong>${report.missingInJiraCount} Phantom tickets</strong> (deleted or archived in Jira but still in Sheets). We recommend running a cleanup.</li>`;
+            }
+            if (report.missingInSheetsCount > 0) {
+                warningText += `<li>Found <strong>${report.missingInSheetsCount} unsynced tickets</strong> (exist in Jira but not in Sheets). Perform a Sync or Historical Load to retrieve them.</li>`;
+            }
+            alertEl.innerHTML = `
+                <svg class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <div class="flex-1">
+                    <span class="font-bold">Discrepancies Detected:</span>
+                    <ul class="list-disc list-inside space-y-1 mt-1">${warningText}</ul>
+                </div>
+            `;
+            
+            // Show Cleanup action button if there are phantom tickets to delete
+            if (report.missingInJiraCount > 0) {
+                actionBtn.classList.remove('hidden');
+            } else {
+                actionBtn.classList.add('hidden');
+            }
+        }
+
+        // Phantom list
+        const phantomListEl = document.getElementById('intPhantomList');
+        document.getElementById('intPhantomCount').textContent = report.missingInJiraCount;
+        if (report.missingInJiraCount === 0) {
+            phantomListEl.innerHTML = '<span class="text-slate-400 italic">No phantom tickets found.</span>';
+        } else {
+            let samplesHtml = report.missingInJiraSamples.map(k => `
+                <a href="https://avidbots.atlassian.net/browse/${k}" target="_blank" class="inline-block bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded mr-1.5 mb-1.5 hover:bg-amber-100 transition-colors">${k}</a>
+            `).join('');
+            if (report.missingInJiraCount > report.missingInJiraSamples.length) {
+                samplesHtml += `<span class="inline-block text-slate-400 text-xs italic mt-1">(and ${report.missingInJiraCount - report.missingInJiraSamples.length} more...)</span>`;
+            }
+            phantomListEl.innerHTML = samplesHtml;
+        }
+
+        // Missing list
+        const missingListEl = document.getElementById('intMissingList');
+        document.getElementById('intMissingCount').textContent = report.missingInSheetsCount;
+        if (report.missingInSheetsCount === 0) {
+            missingListEl.innerHTML = '<span class="text-slate-400 italic">No missing tickets found.</span>';
+        } else {
+            let samplesHtml = report.missingInSheetsSamples.map(k => `
+                <a href="https://avidbots.atlassian.net/browse/${k}" target="_blank" class="inline-block bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded mr-1.5 mb-1.5 hover:bg-blue-100 transition-colors">${k}</a>
+            `).join('');
+            if (report.missingInSheetsCount > report.missingInSheetsSamples.length) {
+                samplesHtml += `<span class="inline-block text-slate-400 text-xs italic mt-1">(and ${report.missingInSheetsCount - report.missingInSheetsSamples.length} more...)</span>`;
+            }
+            missingListEl.innerHTML = samplesHtml;
+        }
+
+        // Open modal
+        const modal = document.getElementById('integrityModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeIntegrityModal() {
+        const modal = document.getElementById('integrityModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function runCleanupFromReport() {
+        closeIntegrityModal();
+        runCleanupDeleted();
+    }
+
     function runToggleTriggers(checkbox) {
         const state = checkbox.checked;
         addLog(state ? 'Enabling daily triggers...' : 'Disabling regular daily triggers...', 'system');

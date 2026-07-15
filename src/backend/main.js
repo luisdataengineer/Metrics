@@ -45,7 +45,7 @@ function runIncrementalSync() {
         Logger.log("🏷️ Syncing DB_Labels (QRT)...");
         const labelsWritten = Database.syncLabels(labelRows, ticketKeys);
         Logger.log(`🏷️ Labels processed: ${labelsWritten}`);
-        
+
         PropertiesService.getScriptProperties().setProperty('LAST_JIRA_SYNC_TIMESTAMP', Utilities.formatDate(new Date(), "America/Bogota", "yyyy-MM-dd HH:mm:ss"));
         Logger.log("🎉 SYNC COMPLETED SUCCESSFULLY.");
 
@@ -68,7 +68,7 @@ function runFullRebuild() {
         // Extract tickets created after the historical base date for Full Sync
         const historyDate = CONFIG.SYNC.HISTORICAL_DATE || "2025-01-01";
         const jql = `project = "${CONFIG.JIRA.PROJECT}" AND created >= "${historyDate}" ORDER BY created ASC`;
-        
+
         Logger.log("📡 Connecting to Jira API and downloading the full project...");
         const rawIssues = fetchJiraIssues(jql);
         Logger.log(`✅ Downloaded ${rawIssues.length} tickets in total.`);
@@ -102,7 +102,7 @@ function runFullRebuild() {
         Logger.log(`📝 Summary -> Inserted: ${dbResult.inserted} | Labels processed: ${labelsWritten}`);
         PropertiesService.getScriptProperties().setProperty('LAST_JIRA_SYNC_TIMESTAMP', Utilities.formatDate(new Date(), "America/Bogota", "yyyy-MM-dd HH:mm:ss"));
         Logger.log("🎉 REBUILD COMPLETED SUCCESSFULLY.");
-        
+
         return `Database successfully rebuilt: ${dbResult.inserted} tickets imported.`;
 
     } catch (error) {
@@ -121,7 +121,7 @@ function runHistoricalLoad(startDate, endDate) {
     try {
         // Format JQL: tickets CREATED in this range
         const jql = `project = "${CONFIG.JIRA.PROJECT}" AND created >= "${startDate}" AND created <= "${endDate}" ORDER BY created ASC`;
-        
+
         Logger.log(`📡 Querying Jira with JQL: ${jql}`);
         const rawIssues = fetchJiraIssues(jql);
 
@@ -133,7 +133,7 @@ function runHistoricalLoad(startDate, endDate) {
         Logger.log(`✅ Downloaded ${rawIssues.length} historical tickets. Processing...`);
         const mainDbRows = Processor.processForMainDB(rawIssues);
         const labelRows = Processor.processForLabelsDB(rawIssues);
-        
+
         // Keep only Keys for Database.syncLabels before upsertTickets converts them
         const ticketKeys = mainDbRows.map(row => row[0]);
 
@@ -155,13 +155,13 @@ function runHistoricalLoad(startDate, endDate) {
  */
 function runManualUpdate(keys) {
     if (!keys || keys.length === 0) return "No tickets provided to update.";
-    
+
     Logger.log(`🛠️ STARTING MANUAL UPDATE FOR ${keys.length} TICKETS...`);
 
     try {
         const keysList = keys.map(k => `"${k}"`).join(", ");
         const jql = `project = "${CONFIG.JIRA.PROJECT}" AND key IN (${keysList})`;
-        
+
         Logger.log(`📡 Querying Jira with JQL: ${jql}`);
         const rawIssues = fetchJiraIssues(jql);
 
@@ -173,21 +173,21 @@ function runManualUpdate(keys) {
         Logger.log(`✅ Downloaded ${rawIssues.length} tickets. Processing...`);
         const mainDbRows = Processor.processForMainDB(rawIssues);
         const labelRows = Processor.processForLabelsDB(rawIssues);
-        
+
         const ticketKeys = mainDbRows.map(row => row[0]);
 
         const dbResult = Database.upsertTickets(mainDbRows);
         const labelsWritten = Database.syncLabels(labelRows, ticketKeys);
 
         Logger.log(`📝 Manual -> Inserted: ${dbResult.inserted} | Updated: ${dbResult.updated}`);
-        
+
         const foundKeys = rawIssues.map(i => i.key);
         const missing = keys.filter(k => !foundKeys.includes(k));
         let exitMsg = `Update of ${rawIssues.length} tickets completed.`;
         if (missing.length > 0) {
             exitMsg += ` WARNING: Not found in Jira: ${missing.join(", ")}`;
         }
-        
+
         return exitMsg;
 
     } catch (error) {
@@ -211,8 +211,8 @@ function runCleanupDeleted() {
 
         // PHASE 1: Phantom Pruning
         const oldestDate = CONFIG.SYNC.HISTORICAL_DATE || "2025-01-01";
-        const jqlKeys = `project = "${CONFIG.JIRA.PROJECT}" AND created >= "${oldestDate}" ORDER BY created ASC`;
-        
+        const jqlKeys = `project = "${CONFIG.JIRA.PROJECT}" AND created >= "${oldestDate}" OR updated >= "2026-01-01" ORDER BY created ASC`;
+
         Logger.log(`📡 PHASE 1: Getting master keys since ${oldestDate}...`);
         const jiraKeys = fetchJiraKeysOnly(jqlKeys);
         const jiraKeysSet = new Set(jiraKeys);
@@ -230,13 +230,13 @@ function runCleanupDeleted() {
         Logger.log("🔍 PHASE 2: Starting Deep Sweep of lost updates from the last 45 days...");
         const deepJql = `project = "${CONFIG.JIRA.PROJECT}" AND updated >= -45d ORDER BY updated ASC`;
         const deepIssues = fetchJiraIssues(deepJql);
-        
+
         let dbResult = { inserted: 0, updated: 0 };
         if (deepIssues.length > 0) {
             const mainDbRows = Processor.processForMainDB(deepIssues);
             const labelRows = Processor.processForLabelsDB(deepIssues);
             const ticketKeys = mainDbRows.map(row => row[0]);
-            
+
             dbResult = Database.upsertTickets(mainDbRows);
             Database.syncLabels(labelRows, ticketKeys);
             Logger.log(`🔄 PHASE 2 OK: Deep Sweep processed ${deepIssues.length} tickets (Updated ${dbResult.updated} and Inserted ${dbResult.inserted} stragglers).`);
@@ -251,12 +251,79 @@ function runCleanupDeleted() {
 }
 
 /**
+ * GENERATES DATA INTEGRITY REPORT
+ * Compares Jira keys vs Google Sheets keys and returns statistical indicators.
+ */
+function runIntegrityReport() {
+    Logger.log("📊 GENERATING DATA INTEGRITY REPORT...");
+
+    try {
+        const sheetKeys = Database.getAllTicketKeys();
+        const oldestDate = CONFIG.SYNC.HISTORICAL_DATE || "2025-01-01";
+        const jqlKeys = `project = "${CONFIG.JIRA.PROJECT}" AND created >= "${oldestDate}" ORDER BY created ASC`;
+
+        Logger.log(`📡 Fetching master keys from Jira since ${oldestDate}...`);
+        const jiraKeys = fetchJiraKeysOnly(jqlKeys);
+
+        const jiraKeysSet = new Set(jiraKeys.map(k => k.toUpperCase()));
+        const sheetKeysSet = new Set(sheetKeys.map(k => k.toUpperCase()));
+
+        // 1. Calculate intersection and differences
+        const matchingKeys = [];
+        const missingInJira = [];
+        const missingInSheets = [];
+
+        sheetKeys.forEach(k => {
+            const keyUpper = k.toUpperCase();
+            if (jiraKeysSet.has(keyUpper)) {
+                matchingKeys.push(k);
+            } else {
+                missingInJira.push(k); // In Sheets, but not in Jira (Phantoms)
+            }
+        });
+
+        jiraKeys.forEach(k => {
+            const keyUpper = k.toUpperCase();
+            if (!sheetKeysSet.has(keyUpper)) {
+                missingInSheets.push(k); // In Jira, but not in Sheets (Missing)
+            }
+        });
+
+        const totalJira = jiraKeys.length;
+        const totalSheets = sheetKeys.length;
+        const matchCount = matchingKeys.length;
+
+        // Coincidence percentage (how many of Jira's tickets are in Sheets)
+        const matchPercentage = totalJira > 0 ? ((matchCount / totalJira) * 100) : (totalSheets === 0 ? 100 : 0);
+
+        return {
+            status: "success",
+            timestamp: Utilities.formatDate(new Date(), "America/Bogota", "yyyy-MM-dd HH:mm:ss"),
+            oldestDate: oldestDate,
+            totalJira: totalJira,
+            totalSheets: totalSheets,
+            matchCount: matchCount,
+            matchPercentage: parseFloat(matchPercentage.toFixed(2)),
+            missingInJiraCount: missingInJira.length,
+            missingInJiraSamples: missingInJira.slice(0, 15), // send first 15 samples
+            missingInSheetsCount: missingInSheets.length,
+            missingInSheetsSamples: missingInSheets.slice(0, 15), // send first 15 samples
+        };
+
+    } catch (error) {
+        Logger.log("❌ ERROR GENERATING INTEGRITY REPORT: " + error.message);
+        throw error;
+    }
+}
+
+
+/**
  * TRIGGERS MANAGER (Automation)
  * Enables or disables scheduled executions in the cloud.
  */
 function manageTriggers(enable) {
     Logger.log(`⏱️ TRIGGERS MANAGER: Request to ${enable ? 'ACTIVATE' : 'DEACTIVATE'} automation.`);
-    
+
     // 1. Strictly clear all previous existing triggers to avoid clones
     const triggers = ScriptApp.getProjectTriggers();
     let deletedCount = 0;
@@ -294,7 +361,7 @@ function manageTriggers(enable) {
             .everyDays(1)
             .inTimezone(Session.getScriptTimeZone())
             .create();
-            
+
         Logger.log(`✅ Triggers built. (${deletedCount} old duplicates deleted)`);
         return "▶️ AUTOMATION ENABLED: Sync every 5 min and Cleanup at Midnight.";
     } else {

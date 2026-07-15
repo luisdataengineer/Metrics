@@ -37,8 +37,8 @@ function getJiraAuth() {
 }
 
 /**
- * FAST FETCH: Retrieves only Keys for ultra-fast audit processes.
- * Consumes 95% less memory and time compared to fetching full objects.
+ * FAST FETCH: Retrieves Keys for ultra-fast audit processes.
+ * Includes id and summary to ensure Jira Cloud nextPageToken stability.
  */
 function fetchJiraKeysOnly(jqlQuery) {
     const auth = getJiraAuth();
@@ -46,18 +46,29 @@ function fetchJiraKeysOnly(jqlQuery) {
     let nextPageToken = null;
     let isLastPage = false;
     
+    // Retry configuration similar to fetchJiraIssues
+    const MAX_RETRIES = 3;
+
     const options = { method: "get", headers: auth.headers, muteHttpExceptions: true };
 
     try {
         do {
-            let url = `${auth.url}/rest/api/3/search/jql?jql=${encodeURIComponent(jqlQuery)}&fields=key&maxResults=100`;
-            if (nextPageToken) url += "&nextPageToken=" + encodeURIComponent(nextPageToken);
+            // Request id, key, and summary to prevent premature isLast: true and token loss
+            let url = `${auth.url}/rest/api/3/search/jql?jql=${encodeURIComponent(jqlQuery)}&fields=id,key,summary&maxResults=${CONFIG.JIRA.MAX_RESULTS || 100}`;
+            
+            if (nextPageToken) {
+                url += "&nextPageToken=" + encodeURIComponent(nextPageToken);
+            }
 
             let attempt = 0, success = false;
             let response, responseCode, responseText;
 
-            while (attempt < 3 && !success) {
-                if (attempt > 0) Utilities.sleep(Math.pow(2, attempt) * 1000);
+            while (attempt < MAX_RETRIES && !success) {
+                if (attempt > 0) {
+                    const sleepTimeMs = Math.pow(2, attempt) * 1000;
+                    Logger.log(`Waiting ${sleepTimeMs}ms before retry ${attempt}/${MAX_RETRIES}...`);
+                    Utilities.sleep(sleepTimeMs);
+                }
                 
                 try {
                     response = UrlFetchApp.fetch(url, options);
@@ -67,26 +78,37 @@ function fetchJiraKeysOnly(jqlQuery) {
                     if (responseCode === 200) {
                         success = true;
                     } else if (responseCode === 429) {
+                        Logger.log("WARNING: Jira Rate Limit reached (Error 429).");
                         attempt++;
-                        if (attempt >= 3) throw new Error("Jira API Error 429: Rate Limit.");
+                        if (attempt >= MAX_RETRIES) throw new Error("Jira API Error 429: Rate Limit Exceeded.");
                     } else {
                         throw new Error(`Jira API Error ${responseCode}: ${responseText}`);
                     }
                 } catch (e) {
                     Logger.log(`Network/Fetch error on attempt ${attempt + 1}: ${e.message}`);
                     attempt++;
-                    if (attempt >= 3) throw new Error(`Jira API Error: ${e.message}`);
+                    if (attempt >= MAX_RETRIES) throw new Error(`Jira API Error: ${e.message}`);
                 }
             }
 
             const data = JSON.parse(responseText);
-            const issues = data.issues || (Array.isArray(data) ? data : []);
-            allKeys = allKeys.concat(issues.map(i => i.key));
+            let issuesPage = [];
+            
+            if (data.issues && Array.isArray(data.issues)) {
+                issuesPage = data.issues;
+            } else if (Array.isArray(data)) {
+                issuesPage = data;
+            }
 
-            isLastPage = data.isLast === true || (!data.nextPageToken && !data.issues);
+            if (issuesPage.length > 0) {
+                allKeys = allKeys.concat(issuesPage.map(i => i.key));
+            }
+
+            // Safely terminate if token is missing or issues array is empty
+            isLastPage = data.isLast === true || !data.nextPageToken || issuesPage.length === 0;
             nextPageToken = data.nextPageToken;
 
-        } while (!isLastPage && (nextPageToken || isLastPage === false));
+        } while (!isLastPage && nextPageToken);
 
         return allKeys;
     } catch (e) {

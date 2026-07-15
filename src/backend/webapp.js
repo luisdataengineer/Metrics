@@ -78,7 +78,13 @@ function cleanupDeleted() {
     return runCleanupDeleted();
 }
 
+function getIntegrityReport() {
+    Logger.log("Web App requested: getIntegrityReport()");
+    return runIntegrityReport();
+}
+
 function toggleTriggers(status) {
     Logger.log(`Web App requested: toggleTriggers(${status})`);
     return manageTriggers(status);
 }
+

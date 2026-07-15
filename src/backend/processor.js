@@ -153,8 +153,8 @@ const Processor = {
 
     _extractLocation: function (description) {
         if (!description) return "Unknown";
-        const match = String(description).match(/location:\s*(.+)/i);
-        if (!match || !match) return "Unknown";
+        const match = String(description).match(/location:\s*(.+?)(?=\r|\n|\s*(?:cleaning plan(?: version)?|reporter|date|time|playback(?:\s*url)?|comment|pin(?:\s*id)?(?:#)?|robot|device|user|customer|country|site)\s*:|$)/i);
+        if (!match || !match[1]) return "Unknown";
 
         // Clean arrays and multiple asterisks safely
         let loc = match[1]
